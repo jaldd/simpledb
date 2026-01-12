@@ -19,7 +19,7 @@ public class DBFile {
     private static final int BITMAP_PAGE_ID = 0;
 
     // 文件头大小：8字节（版本号）
-    private static final int HEADER_SIZE = 8;  // 版本号8字节
+    public static final int HEADER_SIZE = 8;  // 版本号8字节
     public static final int PAGE_SIZE = 4096;  // 与Page类一致
 
     private static final int META_INFO_PAGE = 1;  // 元数据页
@@ -27,6 +27,7 @@ public class DBFile {
     private static final int FIRST_USER_PAGE = 2; // 第一个用户可用页
 
     private static final int SYSTEM_PAGES = 2; // 系统页数量：页0和页1
+
     /**
      * 将用户页号转换为实际页号（加上系统页偏移）
      */
@@ -169,6 +170,18 @@ public class DBFile {
         writeBitmap();
     }
 
+    // 核心方法：计算页在文件中的偏移量
+    public long getPageOffset(int logicalPageId) {
+        // 注意：文件头占用前8字节，所以页从第8字节开始
+        int physicalPageId = toPhysicalPageId(logicalPageId);
+        return HEADER_SIZE + (long) physicalPageId * PAGE_SIZE;
+    }
+
+    // 获取文件逻辑大小（包含空洞）
+    public long getLogicalFileSize() throws IOException {
+        return file.length();
+    }
+
     // 获取总页数（包括已分配和未分配）
     public int getTotalPages() {
         return Math.max(allocatedPages.size(), FIRST_USER_PAGE);
@@ -214,12 +227,20 @@ public class DBFile {
         return buffer.getLong();
     }
 
+    // 检查页是否存在（是否有数据）
+    public boolean pageExists(int logicalPageId) throws IOException {
+        long pageOffset = getPageOffset(logicalPageId);
+        long pageEnd = pageOffset + PAGE_SIZE;
+
+        // 如果页的整个范围都在文件内，则存在
+        return pageEnd <= file.length();
+    }
+
     /**
      * 读取指定页号的数据
      */
     public byte[] readPage(int logicalPageId) throws IOException {
-        int physicalPageId = toPhysicalPageId(logicalPageId);
-        long offset = HEADER_SIZE + (long) physicalPageId * PAGE_SIZE;
+        long offset = getPageOffset(logicalPageId);
 
         /**
          raf.seek(offset);
@@ -251,7 +272,7 @@ public class DBFile {
 
 
         // 使用ByteBuffer包装数据数组
-        ByteBuffer buffer = ByteBuffer.wrap(data, 0, (int)availableBytes);
+        ByteBuffer buffer = ByteBuffer.wrap(data, 0, (int) availableBytes);
 
         // 从指定位置读取数据
         int bytesRead = 0;
@@ -273,8 +294,7 @@ public class DBFile {
         if (data.length != PAGE_SIZE) {
             throw new IllegalArgumentException("页数据大小必须为 " + PAGE_SIZE);
         }
-        int physicalPageId = toPhysicalPageId(logicalPageId);
-        long offset = HEADER_SIZE + (long) physicalPageId * PAGE_SIZE;
+        long offset = getPageOffset(logicalPageId);
 
 //        raf.seek(offset);
 //        raf.write(data);
@@ -301,7 +321,7 @@ public class DBFile {
         // 可选：强制写入磁盘（确保数据持久化）
         channel.force(false); // false表示不强制更新元数据
 
-        System.out.println("写入页 " + physicalPageId + "，偏移量 " + offset + "，写入字节数: " + bytesWritten);
+        System.out.println("写入逻辑页 " + logicalPageId + "，偏移量 " + offset + "，写入字节数: " + bytesWritten);
     }
 
     /**

@@ -7,6 +7,7 @@ public class Page {
     public static final int PAGE_SIZE = 4096;  // 4KB
 
     private final ByteBuffer buffer;
+    private boolean dirty = false;
 
     public Page() {
         this.buffer = ByteBuffer.allocate(PAGE_SIZE);
@@ -39,6 +40,7 @@ public class Page {
     public void setInt(int offset, int value) {
         checkBounds(offset, Integer.BYTES);  // 4字节
         buffer.putInt(offset, value);
+        dirty = true;
     }
 
     public int getInt(int offset) {
@@ -97,6 +99,19 @@ public class Page {
         return result;
     }
 
+    // 新增：获取和设置脏页状态
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void setDirty(boolean dirty) {
+        this.dirty = dirty;
+    }
+
+    public void clearDirty() {
+        this.dirty = false;
+    }
+
     // ===== 其他方法 =====
     public byte[] getData() {
         return buffer.array();
@@ -109,7 +124,7 @@ public class Page {
     // 清空页面（全部置0）
     public void clear() {
         for (int i = 0; i < PAGE_SIZE; i++) {
-            buffer.put(i, (byte)0);
+            buffer.put(i, (byte) 0);
         }
     }
 
